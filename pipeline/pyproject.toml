@@ -1,0 +1,19 @@
+[project]
+name = "twistyfinder-pipeline"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.5.5",
+    "osmium>=4.3.2",
+    "scipy>=1.18.1",
+    "shapely>=2.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

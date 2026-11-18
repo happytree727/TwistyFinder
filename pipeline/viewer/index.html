@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TwistyFinder Pipeline Viewer</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,800;62..125,900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FFFFFF; --ink: #141414; --muted: #5C5C5C; --rule: #141414; --soft: #E9E9E6;
+    --yellow: #FFC400; --reject: #D6452F;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #0E0F0E; --ink: #F2F2EE; --muted: #A3A7A2; --rule: #3A3D3A; --soft: #1C1E1C; }
+  }
+  :root[data-theme="dark"] { --bg: #0E0F0E; --ink: #F2F2EE; --muted: #A3A7A2; --rule: #3A3D3A; --soft: #1C1E1C; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
+  .app { display: flex; height: 100%; }
+  aside { width: 400px; flex-shrink: 0; display: flex; flex-direction: column; padding: 24px 28px 0; overflow: hidden; }
+  #map { flex: 1; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: Archivo; font-weight: 800; font-stretch: 75%; font-size: 18px; text-transform: uppercase; }
+  .diamond { width: 20px; height: 20px; background: var(--yellow); border: 2px solid #141414; border-radius: 3px; transform: rotate(45deg); }
+  h1 { font-family: Archivo; font-weight: 900; font-stretch: 70%; text-transform: uppercase; font-size: 56px; line-height: 50px; margin: 28px 0 8px; }
+  .sub { color: var(--muted); font-size: 14px; line-height: 20px; }
+  .controls { display: flex; flex-direction: column; gap: 10px; padding: 18px 0; font-size: 14px; }
+  .controls label { display: flex; align-items: center; gap: 8px; }
+  input[type=range] { flex: 1; accent-color: var(--yellow); }
+  .list { flex: 1; overflow-y: auto; border-top: 4px solid var(--rule); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1.5px solid var(--rule); cursor: pointer; }
+  .row:hover .name { text-decoration: underline; }
+  .rank { width: 28px; flex-shrink: 0; font-family: Archivo; font-weight: 900; font-stretch: 70%; font-size: 22px; }
+  .meta { flex: 1; min-width: 0; }
+  .name { font-family: Archivo; font-weight: 800; font-stretch: 75%; text-transform: uppercase; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .detail { color: var(--muted); font-size: 12px; }
+  .badge { width: 48px; flex-shrink: 0; text-align: center; padding: 6px 0; background: var(--yellow); color: #141414; border-radius: 5px; font-family: Archivo; font-weight: 900; font-stretch: 75%; font-size: 17px; }
+  .leaflet-popup-content { font-family: Inter, sans-serif; font-size: 13px; line-height: 18px; }
+  .pop-title { font-family: Archivo; font-weight: 800; font-stretch: 75%; text-transform: uppercase; font-size: 17px; }
+  .pop-reject { color: var(--reject); font-weight: 600; }
+  .pop table { border-collapse: collapse; margin-top: 6px; }
+  .pop td { padding: 1px 10px 1px 0; }
+  .attribution { font-size: 11px; color: var(--muted); padding: 10px 0; }
+  @media (max-width: 760px) {
+    .app { flex-direction: column; }
+    aside { width: 100%; height: 45%; padding: 16px 16px 0; }
+    h1 { font-size: 40px; line-height: 36px; margin-top: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand"><div class="diamond"></div><span style="padding-left:4px">TwistyFinder</span><span style="font-family:Inter;font-weight:500;font-size:12px;color:var(--muted);text-transform:none;padding-left:6px">pipeline viewer</span></div>
+    <h1>Curves ahead.</h1>
+    <div class="sub" id="summary">Loading...</div>
+    <div class="controls">
+      <label>Min twist <input type="range" id="minTwist" min="0" max="10" step="0.5" value="3"><span id="minTwistVal">3.0</span></label>
+      <label><input type="checkbox" id="showRejected"> Show filtered neighborhoods / in-town (red)</label>
+    </div>
+    <div class="list" id="list"></div>
+    <div class="attribution">Road data &copy; OpenStreetMap contributors, ODbL. Basemap tiles are for local dev only.</div>
+  </aside>
+  <div id="map"></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const DOT = String.fromCharCode(183);
+const params = new URLSearchParams(location.search);
+const prefix = params.get("data") || "florida";
+const map = L.map("map", { preferCanvas: true }).setView([28.3, -82.4], 7);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 18, attribution: "&copy; OpenStreetMap contributors",
+}).addTo(map);
+
+const ramp = t => t >= 8 ? "#FFC400" : t >= 6 ? "#F59E0B" : t >= 4 ? "#B7791F" : "#6B6B6B";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const label = p => [p.ref, p.name].filter(Boolean).join(" " + DOT + " ") || `Unnamed ${p.highway}`;
+
+function popup(p, latlng) {
+  const rows = [
+    ["Length", `${p.length_mi} mi`], ["Curvy", `${p.curvy_mi} mi`], ["Class", p.highway],
+    ["Surface", p.surface], ["Dirt tracks / mi", p.dirt_links_per_mi],
+    ["Buildings / mi", p.buildings_per_mi], ["Intersections / mi", p.junctions_per_mi],
+    ["Driveways / mi", p.driveways_per_mi], ["Signals+stops / mi", p.controls_per_mi],
+    ["Speed limit", p.maxspeed_mph ? `${Math.round(p.maxspeed_mph)} mph` : "untagged"],
+    ["Context multiplier", `x${p.multiplier}`],
+  ].map(([k, v]) => `<tr><td>${k}</td><td><b>${esc(v)}</b></td></tr>`).join("");
+  const ways = (p.osm_way_ids || []).slice(0, 3).map(id => `<a target="_blank" href="https://www.openstreetmap.org/way/${id}">${id}</a>`).join(", ");
+  const gmaps = `https://www.google.com/maps/@${latlng.lat},${latlng.lng},15z`;
+  return `<div class="pop"><div class="pop-title">${esc(label(p))}</div>
+    ${p.reject ? `<div class="pop-reject">Filtered: ${esc(p.reject)}</div>` : `<div>Twist <b>${p.twist}</b> / 10</div>`}
+    <table>${rows}</table>
+    <div style="margin-top:6px">OSM ways: ${ways} &middot; <a target="_blank" href="${gmaps}">Google Maps</a></div></div>`;
+}
+
+let kept = [], keptLayer, rejLayer;
+const minEl = document.getElementById("minTwist"), minVal = document.getElementById("minTwistVal");
+
+function renderKept() {
+  const min = parseFloat(minEl.value);
+  minVal.textContent = min.toFixed(1);
+  if (keptLayer) keptLayer.remove();
+  const feats = kept.filter(f => f.properties.twist >= min);
+  keptLayer = L.geoJSON({ type: "FeatureCollection", features: feats }, {
+    style: f => ({ color: ramp(f.properties.twist), weight: f.properties.twist >= 6 ? 5 : 3.5, opacity: 0.95,
+      dashArray: f.properties.surface === "unverified" ? "6 5" : null }),
+    onEachFeature: (f, l) => l.on("click", e => l.bindPopup(popup(f.properties, e.latlng)).openPopup(e.latlng)),
+  }).addTo(map);
+  document.getElementById("list").innerHTML = feats.slice(0, 150).map((f, i) => {
+    const p = f.properties;
+    return `<div class="row" data-i="${kept.indexOf(f)}"><div class="rank">${i + 1}</div>
+      <div class="meta"><div class="name">${esc(label(p))}</div>
+      <div class="detail">${p.length_mi} mi &middot; ${p.curvy_mi} curvy mi &middot; ${esc(p.highway)}</div></div>
+      <div class="badge">${p.twist.toFixed(1)}</div></div>`;
+  }).join("");
+}
+
+document.getElementById("list").addEventListener("click", e => {
+  const row = e.target.closest(".row"); if (!row) return;
+  const f = kept[+row.dataset.i];
+  const lyr = L.geoJSON(f); map.fitBounds(lyr.getBounds(), { padding: [60, 60], maxZoom: 14 });
+  const c = f.geometry.coordinates[Math.floor(f.geometry.coordinates.length / 2)];
+  L.popup().setLatLng([c[1], c[0]]).setContent(popup(f.properties, { lat: c[1], lng: c[0] })).openOn(map);
+});
+minEl.addEventListener("input", renderKept);
+
+document.getElementById("showRejected").addEventListener("change", async e => {
+  if (!e.target.checked) { rejLayer && rejLayer.remove(); return; }
+  if (!rejLayer) {
+    const rej = await (await fetch(`../../data/${prefix}-rejected.geojson`)).json();
+    rejLayer = L.geoJSON(rej, {
+      style: { color: "#D6452F", weight: 2.5, opacity: 0.8, dashArray: "4 4" },
+      onEachFeature: (f, l) => l.on("click", ev => l.bindPopup(popup(f.properties, ev.latlng)).openPopup(ev.latlng)),
+    });
+  }
+  rejLayer.addTo(map);
+});
+
+(async () => {
+  const fc = await (await fetch(`../../data/${prefix}-twisties.geojson`)).json();
+  kept = fc.features;
+  document.getElementById("summary").textContent =
+    `${kept.length.toLocaleString()} twisty sections. Twist is a fixed 0-10 scale (Tail of the Dragon = 10). Dashed = surface unverified. Subdivisions, in-town and likely-unpaved roads are filtered.`;
+  renderKept();
+})();
+</script>
+</body>
+</html>
