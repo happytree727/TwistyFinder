@@ -20,3 +20,9 @@ build/
 data/
 *.osm.pbf
 *.pmtiles
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
