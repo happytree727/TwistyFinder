@@ -100,6 +100,33 @@ Each direction has a 1440x900 desktop (primary) and a 390x844 mobile screen.
    - Hourly Hetzner VM: monthly OSM batch
 3. **Code:** public repo at github.com/happytree727/TwistyFinder.
 
+## Brand system (chosen hybrid)
+
+Type:
+- Display: Archivo, weight 800-900, width 70-75%, uppercase
+- UI and body: Inter
+
+Signature motifs:
+- Yellow diamond road-sign logo
+- Yellow score badges
+- Heavy rule above lists
+- Routes drawn as a road with a dashed yellow center line, on a calm topographic map
+
+| Role | Light | Dark |
+|---|---|---|
+| Background | `#FFFFFF` | `#0E0F0E` |
+| Text | `#141414` | `#F2F2EE` |
+| Muted text | `#5C5C5C` | `#A3A7A2` |
+| Row divider | `#141414` | `#3A3D3A` |
+| Accent (center-line yellow) | `#FFC400` | `#FFC400` |
+| Map ground | `#F2F4F1` | `#141614` |
+| Map contours | `#D3DDD6` | `#242824` |
+| Map roads | `#C4CEC7` | `#323632` |
+| Route body | `#141414` | `#3A3E3A` |
+| Primary CTA | asphalt bg, white text | yellow bg, asphalt text |
+
+Theme follows `prefers-color-scheme` by default, with a manual toggle in the nav.
+
 ## Code hosting
 
 GitHub, public, under the personal `happytree727` account. Personal project, not affiliated with AGI. Commits use the happytree727 no-reply email (set repo-local).
